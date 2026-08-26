@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Experiment artifacts (never commit results or checkpoints)
+checkpoints/
+results/
+logs/
+*.pt
+*.ckpt
+summary.json
+history.json
