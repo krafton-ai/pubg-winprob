@@ -1,9 +1,9 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC ### PGC WWCD Prediction - Competitive Squad-Fpp Dataset Generation
-# MAGIC * Source: s3://prod-live-gamelog-service-new/gamelog/gamelog/bro/
-# MAGIC * Saved Source: /Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_match_log  
-# MAGIC * Destination: /Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/replay_samples_v2.1/
+# MAGIC * Source: s3://<gamelog-bucket>/gamelog/bro/
+# MAGIC * Saved Source: /path/to/data/pgc_match_log  
+# MAGIC * Destination: /path/to/data/pgc_features/replay_samples_v2.1/
 # MAGIC
 # MAGIC #### Preprecessing steps
 # MAGIC 1. Copy the source data to the local system.
@@ -51,11 +51,11 @@ from feature_engineering.extracting_pgc_features import FeatureExtractor, SquadF
 
 # COMMAND ----------
 
-SOURCE_PATH_TEMP = 's3://prod-live-gamelog-service-new/gamelog/gamelog/bro/{year}/{month}/{day}/{hour}/{platform}/{league_type}/pc-2018-{season}/{mode}/{region}' # adding region 
-TEMP_LOCAL_PATH = "/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_match_log/"
+SOURCE_PATH_TEMP = 's3://<gamelog-bucket>/gamelog/bro/{year}/{month}/{day}/{hour}/{platform}/{league_type}/pc-2018-{season}/{mode}/{region}' # adding region 
+TEMP_LOCAL_PATH = "/path/to/data/pgc_match_log/"
 
 # Replay 1 sec sampled Squad-FPP 
-DEST_PATH = "/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/replay_samples_v2.1/"
+DEST_PATH = "/path/to/data/pgc_features/replay_samples_v2.1/"
 
 print(f"SOURCE_PATH_TEMP: {SOURCE_PATH_TEMP}")
 print(f"TEMP_LOCAL_PATH: {TEMP_LOCAL_PATH}")
@@ -85,7 +85,7 @@ def check_s3_exist(s3path):
 
 def s3filecopy(path, temp_path=TEMP_LOCAL_PATH):
     try:
-        local_path = temp_path + path.split('s3://prod-live-gamelog-service-new/gamelog/gamelog/')[-1]
+        local_path = temp_path + path.split('s3://<gamelog-bucket>/gamelog/')[-1]
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         if os.path.exists(local_path):
             return 'exists', local_path
@@ -390,7 +390,7 @@ def processing_match_log_task(path, idx, map_filter=None):
 # COMMAND ----------
 
 # # Sample-test feature generation 
-BASE_PATH = "/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_match_log/bro/2025/11/25/01/steam/competitive/pc-2018-38/squad-fpp/as/"
+BASE_PATH = "/path/to/data/pgc_match_log/bro/2025/11/25/01/steam/competitive/pc-2018-38/squad-fpp/as/"
 
 # feature v2.1 replay high rp matches 
 match_files = ["gamelog.bro.competitive.pc-2018-38.steam.squad-fpp.as.2025.11.25.01.00a2cad8-c58c-442c-8364-262ebf456b7b.json.gz"]
@@ -443,7 +443,7 @@ print(f"📅 총 {len(date_range)}일 처리 예정")
 # COMMAND ----------
 
 # High ranking point matches filtering
-HIGH_RP_CSV_PATH = "/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/competitive_high_rp_match/high_rp_matches_as_squad_fpp_20250525_20251125_with_datetime.csv" # as
+HIGH_RP_CSV_PATH = "/path/to/data/competitive_high_rp_match/high_rp_matches_as_squad_fpp_20250525_20251125_with_datetime.csv" # as
 
 # Initialize High RP Matches Filter
 try:

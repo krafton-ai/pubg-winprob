@@ -122,7 +122,7 @@ def main():
     """메인 실행 함수"""
     
     # 파일 경로 설정 (Databricks 환경 기준)
-    BASE_PATH = "/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/competitive_high_rp_match/"
+    BASE_PATH = "/path/to/data/competitive_high_rp_match/"
     INPUT_CSV = f"{BASE_PATH}/high_rp_matches_as_squad_fpp_20250525_20251125.csv"
     OUTPUT_CSV = f"{BASE_PATH}/high_rp_matches_as_squad_fpp_20250525_20251125_with_datetime.csv"
     

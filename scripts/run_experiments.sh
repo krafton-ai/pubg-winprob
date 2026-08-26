@@ -2,13 +2,16 @@
 
 # Hyperparameter Grid Search for PGC Transformer Model
 # Usage: bash scripts/run_experiments.sh
+#
+# Data/output locations can be overridden via environment variables:
+#   FOLDER_PATH, SPLIT_CSV_PATH, LOG_DIR, BASE_CHECKPOINT_DIR
 
-# Data paths
-FOLDER_PATH="/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/inference_v2.1"
-SPLIT_CSV_PATH="/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/inference_v2.1/split_files.csv"
-LOG_DIR="/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_results/logs/"
+# Data paths (replace with your own paths or export as environment variables)
+FOLDER_PATH="${FOLDER_PATH:-/path/to/data}"
+SPLIT_CSV_PATH="${SPLIT_CSV_PATH:-/path/to/data/split_files.csv}"
+LOG_DIR="${LOG_DIR:-logs}"
 
-# Toy mode: set to true to use only 10% of data for quick testing
+# Toy mode: set to true to use only a small fraction of data for quick testing
 TOY_MODE=false
 if [ "$TOY_MODE" = true ]; then
     TOY_RATIO=0.03
@@ -17,33 +20,29 @@ else
 fi
 
 # Training settings
-NUM_EPOCHS=1
+NUM_EPOCHS=10
 PATIENCE=4
-BATCH_SIZE=64
+BATCH_SIZE=512
 NUM_WORKERS=4
 WORLD_SIZE=8  # Number of GPUs
+SEED=42
 
-# Loss type: 'mse' (regression), 'cox' (survival), 'ce' (classification)
+# Loss type: 'mse' (regression), 'cox' (survival), 'ce' (classification),
+# 'weighted_cox' (paper loss: elimination + survival with early-focus weighting)
 LOSS_TYPE="weighted_cox"
 
 # Dataset version: true for v2 (with distance features), false for v1
-USE_DATASET_V2="false"
+USE_DATASET_V2="true"
 
-# Hyperparameter grid
-EMBED_DIMS=(1024)
-NUM_HEADS=(2)
-NUM_LAYERS=(2)
-DROPOUTS=(0.1)
-LRS=(1e-4)
+# Hyperparameter grid (includes the paper configuration: 64/8/8, dropout 0.1, lr 1e-4)
+EMBED_DIMS=(64 128 256)
+NUM_HEADS=(4 8)
+NUM_LAYERS=(4 6 8)
+DROPOUTS=(0.1 0.2)
+LRS=(1e-3 1e-4)
 
-# EMBED_DIMS=(64 128 256)
-# NUM_HEADS=(2 4 8)
-# NUM_LAYERS=(2 4 6)
-# DROPOUTS=(0.1 0.2)
-# LRS=(1e-3 1e-4)
-
-# Base checkpoint directory
-BASE_CHECKPOINT_DIR="/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_results/checkpoints"
+# Base checkpoint directory (not committed; see .gitignore)
+BASE_CHECKPOINT_DIR="${BASE_CHECKPOINT_DIR:-checkpoints}"
 
 echo "=========================================="
 echo "Starting Hyperparameter Grid Search"
@@ -60,7 +59,7 @@ for EMBED_DIM in "${EMBED_DIMS[@]}"; do
                 for LR in "${LRS[@]}"; do
 
                     # Create experiment name from hyperparameters
-                    EXP_NAME="emb${EMBED_DIM}_head${NUM_HEAD}_layer${NUM_LAYER}_drop${DROPOUT}_lr${LR}_${LOSS_TYPE}_v2.1"
+                    EXP_NAME="emb${EMBED_DIM}_head${NUM_HEAD}_layer${NUM_LAYER}_drop${DROPOUT}_lr${LR}_${LOSS_TYPE}"
                     CHECKPOINT_DIR="${BASE_CHECKPOINT_DIR}/${EXP_NAME}"
 
                     echo ""
@@ -86,6 +85,7 @@ for EMBED_DIM in "${EMBED_DIMS[@]}"; do
                         --toy_ratio ${TOY_RATIO} \
                         --loss_type ${LOSS_TYPE} \
                         --use_dataset_v2 ${USE_DATASET_V2} \
+                        --seed ${SEED} \
                         2>&1 | tee "${LOG_DIR}/${EXP_NAME}.log"
                     echo "Experiment ${EXP_NAME} completed."
                     echo "Checkpoint saved to: ${CHECKPOINT_DIR}"
@@ -103,7 +103,7 @@ echo "Results saved in: ${BASE_CHECKPOINT_DIR}"
 echo "Logs saved in: ${LOG_DIR}"
 echo "=========================================="
 
-# Generate summary
+# Generate summary (written to the checkpoint directory; not committed)
 echo ""
 echo "Generating summary..."
 python -c "
@@ -117,17 +117,17 @@ results = []
 for exp_dir in sorted(glob.glob(os.path.join(base_dir, '*'))):
     if not os.path.isdir(exp_dir):
         continue
-    
+
     exp_name = os.path.basename(exp_dir)
     history_path = os.path.join(exp_dir, 'history.json')
     config_path = os.path.join(exp_dir, 'config.json')
-    
+
     if os.path.exists(history_path) and os.path.exists(config_path):
         with open(history_path) as f:
             history = json.load(f)
         with open(config_path) as f:
             config = json.load(f)
-        
+
         results.append({
             'exp_name': exp_name,
             'best_val_loss': history['best_val_loss'],
@@ -142,23 +142,9 @@ for exp_dir in sorted(glob.glob(os.path.join(base_dir, '*'))):
 # Sort by best_val_loss
 results = sorted(results, key=lambda x: x['best_val_loss'])
 
-# Print summary
-print('\n' + '='*80)
-print('EXPERIMENT SUMMARY (sorted by best_val_loss)')
-print('='*80)
-print(f\"{'Rank':<5} {'Experiment':<50} {'Best Val Loss':<15} {'Best Epoch':<10}\")
-print('-'*80)
-
-for i, r in enumerate(results, 1):
-    print(f\"{i:<5} {r['exp_name']:<50} {r['best_val_loss']:<15.6f} {r['best_epoch']:<10}\")
-
-print('='*80)
-
 # Save summary to JSON
 summary_path = os.path.join(base_dir, 'summary.json')
 with open(summary_path, 'w') as f:
     json.dump(results, f, indent=2)
-print(f'\nSummary saved to: {summary_path}')
+print(f'Summary saved to: {summary_path}')
 "
-
-

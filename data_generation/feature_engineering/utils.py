@@ -114,7 +114,7 @@ def load_match_df_from_ded_jsonl(path, use_log_types, use_cols, return_df=False)
         return MatchId, N    
 
 
-def s3filecopy(path, temp_path='/Volumes/main/dl_service_dev/anticheat/match_sample/'):
+def s3filecopy(path, temp_path='/path/to/match_sample/'):
     local_path = os.path.join(temp_path, path.split('/')[-1])
     dbutils.fs.cp(path, f"{local_path}")
     return local_path

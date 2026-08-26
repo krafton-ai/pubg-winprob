@@ -2,9 +2,9 @@
 # MAGIC %md
 # MAGIC ### PGC WWCD Prediction - Postmatch Dataset Generation
 # MAGIC * Source: Esport post-match JSON files (Volume)
-# MAGIC > - esport post-match: /Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_inference_match_log/
-# MAGIC > - pgc 2025 post-match: /Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_2025_match_log/
-# MAGIC * Destination: /Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/inference_v2.1/
+# MAGIC > - esport post-match: /path/to/data/pgc_inference_match_log/
+# MAGIC > - pgc 2025 post-match: /path/to/data/pgc_2025_match_log/
+# MAGIC * Destination: /path/to/data/pgc_features/inference_v2.1/
 # MAGIC
 # MAGIC
 # MAGIC #### Preprocessing steps
@@ -59,11 +59,11 @@ from feature_engineering.match_table_info import target_table_and_cols
 # COMMAND ----------
 
 # PGC JSON 파일 경로 설정
-PGC_JSON_PATH = "/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_inference_match_log/"  # PGC JSON 파일 위치
-DEST_PATH = "/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/inference_v2.1/"
+PGC_JSON_PATH = "/path/to/data/pgc_inference_match_log/"  # PGC JSON 파일 위치
+DEST_PATH = "/path/to/data/pgc_features/inference_v2.1/"
 
 # Test match 설정
-test_match= "/Volumes/main/dl_service_dev/anticheat/jmkim/pgc/2ab28633-c919-45c5-82bb-dab37b0e8363" # PUBG RACE 10 - Match 3
+test_match= "/path/to/match_logs/2ab28633-c919-45c5-82bb-dab37b0e8363" # PUBG RACE 10 - Match 3
 
 # 처리 설정
 USE_PARALLEL = True          # True: 병렬 처리, False: 순차 처리
@@ -306,8 +306,8 @@ def processing_match_log_task(path, idx, required_log_types_lower, use_cols):
 # COMMAND ----------
 
 # 테스트용 단일 파일 처리
-test_match= "/Volumes/main/dl_service_dev/anticheat/jmkim/pgc/2ab28633-c919-45c5-82bb-dab37b0e8363" # PUBG RACE 10 - Match 3
-# /Volumes/main/dl_service_dev/anticheat/jmkim/pgc/c90469ee-da29-4d51-ae6d-631a35fbcdcf # PUBG RACE 10 - Match 4
+test_match= "/path/to/match_logs/2ab28633-c919-45c5-82bb-dab37b0e8363" # PUBG RACE 10 - Match 3
+# /path/to/match_logs/c90469ee-da29-4d51-ae6d-631a35fbcdcf # PUBG RACE 10 - Match 4
 if os.path.exists(test_match):
     print(f"🔄 Testing with: {test_match}")
     squad_df = processing_match_log_task(test_match, 0, required_log_types_lower, use_cols)
@@ -331,7 +331,7 @@ print(squad_df.columns)
 # 테스트 결과 저장
 if squad_df is not None and len(squad_df) > 0:
     output_filename = f"pubg_race_match3_squad_dataset_251204.csv"
-    output_path = os.path.join("/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/sample_test/", output_filename)
+    output_path = os.path.join("/path/to/data/pgc_features/sample_test/", output_filename)
     
     os.makedirs(DEST_PATH, exist_ok=True)
     squad_df.to_csv(output_path, index=False)

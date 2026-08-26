@@ -4,9 +4,9 @@
 # MAGIC - phase별 n개 샘플링이 아닌 특정 초 단위로 샘플링
 # MAGIC
 # MAGIC * Source: Esport post-match JSON files (Volume)
-# MAGIC > - esport post-match: /Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_inference_match_log/
-# MAGIC > - pgc 2025 post-match: /Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_2025_match_log/
-# MAGIC * Destination: /Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/prod/
+# MAGIC > - esport post-match: /path/to/data/pgc_inference_match_log/
+# MAGIC > - pgc 2025 post-match: /path/to/data/pgc_2025_match_log/
+# MAGIC * Destination: /path/to/data/pgc_features/prod/
 # MAGIC
 # MAGIC #### Preprocessing steps
 # MAGIC 1. Load post-match JSON files directly
@@ -60,11 +60,11 @@ from feature_engineering.match_table_info import target_table_and_cols
 # COMMAND ----------
 
 # PGC JSON 파일 경로 설정
-PGC_JSON_PATH = "/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_2025_match_log/"  # PGC 2025 JSON 파일 위치
-DEST_PATH = "/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/prod/"
+PGC_JSON_PATH = "/path/to/data/pgc_2025_match_log/"  # PGC 2025 JSON 파일 위치
+DEST_PATH = "/path/to/data/pgc_features/prod/"
 
 # Test match 설정
-test_match= "/Volumes/main/dl_service_dev/anticheat/jmkim/pgc/2ab28633-c919-45c5-82bb-dab37b0e8363" # PUBG RACE 10 - Match 3
+test_match= "/path/to/match_logs/2ab28633-c919-45c5-82bb-dab37b0e8363" # PUBG RACE 10 - Match 3
 
 # 처리 설정
 USE_PARALLEL = True          # True: 병렬 처리, False: 순차 처리
@@ -307,7 +307,7 @@ def processing_match_log_task(path, idx, required_log_types_lower=None, use_cols
 # COMMAND ----------
 
 # 테스트용 단일 파일 처리
-test_match= "/Volumes/main/dl_service_dev/anticheat/jmkim/pgc/2ab28633-c919-45c5-82bb-dab37b0e8363" # PUBG RACE 10 - Match 3
+test_match= "/path/to/match_logs/2ab28633-c919-45c5-82bb-dab37b0e8363" # PUBG RACE 10 - Match 3
 
 if os.path.exists(test_match):
     print(f"🔄 Testing with: {test_match}")
@@ -326,7 +326,7 @@ if os.path.exists(test_match):
 
 # 테스트 결과 저장
 output_filename = f"pubg_race_match3_squad_dataset_10sec_sampled.csv"
-output_path = os.path.join("/Volumes/main_dev/dld_ml_anticheat_test/anticheat_test_volume/pgc_wwcd/pgc_features/sample_test/", output_filename)
+output_path = os.path.join("/path/to/data/pgc_features/sample_test/", output_filename)
 
 os.makedirs(DEST_PATH, exist_ok=True)
 test_result.to_csv(output_path, index=False)
