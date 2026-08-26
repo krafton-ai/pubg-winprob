@@ -14,7 +14,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from scipy.optimize import minimize_scalar
 
 from src.data import PGCDataset, CONTINUOUS_FEATURES
 from src.data.dataset import collate_fn
@@ -85,6 +84,7 @@ def compute_ece_with_temperature(
     targets: torch.Tensor,
     valid_mask: torch.Tensor,
     temperature: float,
+    n_bins: int = 15,
 ) -> float:
     """
     Compute ECE with temperature-scaled logits.
@@ -94,12 +94,13 @@ def compute_ece_with_temperature(
         targets: Ground truth targets (batch, num_squads).
         valid_mask: Valid mask (batch, num_squads).
         temperature: Temperature parameter (tau).
+        n_bins: Number of confidence bins (paper: B = 15).
 
     Returns:
         ECE value.
     """
     scaled_logits = logits / temperature
-    return compute_ece(scaled_logits, targets, valid_mask)
+    return compute_ece(scaled_logits, targets, valid_mask, n_bins=n_bins)
 
 
 def find_optimal_temperature(
@@ -107,12 +108,23 @@ def find_optimal_temperature(
     targets: torch.Tensor,
     valid_mask: torch.Tensor,
     tau_min: float = 0.1,
-    tau_max: float = 10.0,
-    num_tau_points: int = 100,
+    tau_max: float = 2.0,
+    tau_step: float = 0.01,
+    n_bins: int = 15,
+    refine: bool = True,
     verbose: bool = True,
 ) -> Tuple[float, float, Dict[str, float]]:
     """
-    Find optimal temperature that minimizes ECE using grid search + refinement.
+    Find the temperature that minimizes validation ECE via grid search
+    followed by local refinement.
+
+    This function is model-agnostic: it only requires (logits, targets,
+    valid_mask) arrays, so it can calibrate the Transformer as well as any
+    baseline (pass log-probabilities as logits, e.g. from
+    scripts/run_baselines.py).
+
+    Defaults follow the paper: grid search over [0.1, 2.0] with step 0.01,
+    followed by local refinement of the optimum, with B = 15 confidence bins.
 
     Args:
         logits: Raw model logits (batch, num_squads).
@@ -120,39 +132,45 @@ def find_optimal_temperature(
         valid_mask: Valid mask (batch, num_squads).
         tau_min: Minimum temperature to search.
         tau_max: Maximum temperature to search.
-        num_tau_points: Number of tau values to evaluate for grid search.
+        tau_step: Grid step size.
+        n_bins: Number of confidence bins for ECE.
+        refine: If True (default), refine the grid optimum with
+            scipy.optimize.minimize_scalar.
         verbose: Whether to print progress.
 
     Returns:
         Tuple of (optimal_temperature, minimum_ece, tau_to_ece_dict).
     """
     def objective(tau):
-        return compute_ece_with_temperature(logits, targets, valid_mask, tau)
+        return compute_ece_with_temperature(logits, targets, valid_mask, tau, n_bins=n_bins)
 
     # Grid search: compute ECE for all tau values
-    tau_values = np.linspace(tau_min, tau_max, num_tau_points)
+    tau_values = np.arange(tau_min, tau_max + tau_step / 2, tau_step)
     tau_to_ece = {}
+    optimal_tau, min_ece = tau_values[0], float("inf")
     for tau in tau_values:
         ece = objective(tau)
         tau_to_ece[f"{tau:.4f}"] = float(ece)
+        if ece < min_ece:
+            optimal_tau, min_ece = float(tau), float(ece)
 
-    # Use scipy's minimize_scalar for precise optimal tau
-    result = minimize_scalar(
-        objective,
-        bounds=(tau_min, tau_max),
-        method="bounded",
-        options={"xatol": 1e-4},
-    )
+    # Optional refinement around the grid optimum
+    if refine:
+        from scipy.optimize import minimize_scalar
 
-    optimal_tau = result.x
-    min_ece = result.fun
-
-    # Add optimal tau to the dict if not already present
-    tau_to_ece[f"{optimal_tau:.4f}"] = float(min_ece)
+        result = minimize_scalar(
+            objective,
+            bounds=(tau_min, tau_max),
+            method="bounded",
+            options={"xatol": 1e-4},
+        )
+        if result.fun < min_ece:
+            optimal_tau, min_ece = float(result.x), float(result.fun)
+            tau_to_ece[f"{optimal_tau:.4f}"] = min_ece
 
     if verbose:
         # Also compute ECE at tau=1.0 for comparison
-        ece_no_scaling = compute_ece_with_temperature(logits, targets, valid_mask, 1.0)
+        ece_no_scaling = compute_ece_with_temperature(logits, targets, valid_mask, 1.0, n_bins=n_bins)
         print(f"ECE without temperature scaling (tau=1.0): {ece_no_scaling:.6f}")
         print(f"Optimal temperature (tau): {optimal_tau:.4f}")
         print(f"ECE with optimal temperature: {min_ece:.6f}")
@@ -216,6 +234,7 @@ def calibrate_from_checkpoint(
         num_heads=num_heads,
         num_layers=num_layers,
         dropout=dropout,
+        encoder_type=config.get("encoder_type", "transformer"),
     )
 
     head = get_head(loss_type, embed_dim=embed_dim, dropout=dropout)
@@ -399,6 +418,7 @@ if __name__ == "__main__":
     print("Calibration Results")
     print("=" * 50)
     for key, value in results.items():
-        print(f"{key}: {value:.6f}")
+        if isinstance(value, (int, float)):
+            print(f"{key}: {value:.6f}")
 
 

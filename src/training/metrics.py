@@ -85,13 +85,14 @@ def compute_ece(
     pred: torch.Tensor,
     target: torch.Tensor,
     valid_mask: torch.Tensor,
-    n_bins: int = 10,
+    n_bins: int = 15,
 ) -> float:
     """
-    Expected Calibration Error.
+    Expected Calibration Error (Eq. 15).
 
     Bins predictions by maximum confidence and measures the gap between
     mean confidence and mean empirical accuracy within each bin.
+    The paper uses B = 15 bins.
     """
     batch_size = pred.size(0)
     probs = compute_winner_probabilities(pred, valid_mask)
@@ -184,9 +185,9 @@ def compute_integrated_brier_score(
     Integrated Brier Score (IBS) for winner probability predictions.
 
     For each time point, the Brier score is the squared error between the
-    predicted winner probability and the one-hot winner indicator, averaged
-    over squads. The IBS averages the Brier score across all valid time
-    points (batch dimension).
+    predicted winner probability and the one-hot winner indicator, summed
+    over the squads in the risk set (Eq. 18). The IBS averages this
+    per-time-point Brier score across all valid time points (batch dimension).
 
     Args:
         pred: (batch, num_squads) - raw scores; softmax produces probabilities.
@@ -195,7 +196,8 @@ def compute_integrated_brier_score(
         valid_mask: (batch, num_squads) - True for valid squads.
 
     Returns:
-        IBS in [0, 1] (lower is better).
+        IBS (lower is better). Because squared errors are summed over the
+        risk set, the value may exceed 1.
     """
     probs = compute_winner_probabilities(pred, valid_mask)
 
@@ -209,9 +211,8 @@ def compute_integrated_brier_score(
     brier_per_squad = (probs - winner_onehot) ** 2
     brier_per_squad = brier_per_squad * valid_mask.float()
 
-    # Average over squads per sample, then over the batch (time dimension).
-    n_valid = valid_mask.float().sum(dim=-1).clamp(min=1)
-    brier_per_sample = brier_per_squad.sum(dim=-1) / n_valid
+    # Sum over the risk set per time point, then average over time (batch).
+    brier_per_sample = brier_per_squad.sum(dim=-1)
     return brier_per_sample.mean().item()
 
 
