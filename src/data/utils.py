@@ -109,3 +109,18 @@ def parse_location_features(
 
     return positions, bluezone_info, whitezone_info
 
+
+# In-game phase boundaries (seconds). Phase k covers
+# [PHASE_BOUNDARIES[k-1], PHASE_BOUNDARIES[k]).
+PHASE_BOUNDARIES = [0, 600, 810, 990, 1170, 1350, 1530, 1680, 1800, 1970, 2000]
+NUM_PHASES = len(PHASE_BOUNDARIES) - 1
+
+
+def time_point_to_phase(time_point: float) -> int:
+    """
+    Map an in-game time point (seconds) to its phase number (1-10).
+    """
+    for phase in range(1, NUM_PHASES + 1):
+        if time_point < PHASE_BOUNDARIES[phase]:
+            return phase
+    return NUM_PHASES

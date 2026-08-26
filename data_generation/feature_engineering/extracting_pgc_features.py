@@ -60,19 +60,35 @@ class SquadFeatureExtractor(FeatureExtractor):
             'item_medkit_count', 'item_painkiller_count', 'item_energydrink_count', 'item_adrenaline_count'
         ]
         
-        # Phase 설정 (각 phase별로 동일한 개수 샘플링)
+        # Phase 설정: phase별 가중 샘플링 (후반 phase일수록 조밀하게)
+        #   phase 1:    ~60s interval
+        #   phase 2-3:  ~20s interval
+        #   phase 4-6:  ~10s interval
+        #   phase 7-10: ~5s interval
+        # 랜덤 178개 + phase 경계 anchor 14개 = 매치당 192개 time point
         self.phase_config = {
-            1: {'start': 0, 'end': 600, 'n_samples': 5},
-            2: {'start': 600, 'end': 810, 'n_samples': 5},
-            3: {'start': 810, 'end': 990, 'n_samples': 5},
-            4: {'start': 990, 'end': 1170, 'n_samples': 5},
-            5: {'start': 1170, 'end': 1350, 'n_samples': 5},
-            6: {'start': 1350, 'end': 1530, 'n_samples': 5},
-            7: {'start': 1530, 'end': 1680, 'n_samples': 5},
-            8: {'start': 1680, 'end': 1800, 'n_samples': 5},
-            9: {'start': 1800, 'end': 1970, 'n_samples': 5},
-            10: {'start': 1970, 'end': 2000, 'n_samples': 5}
+            1: {'start': 0, 'end': 600, 'n_samples': 10},
+            2: {'start': 600, 'end': 810, 'n_samples': 11},
+            3: {'start': 810, 'end': 990, 'n_samples': 9},
+            4: {'start': 990, 'end': 1170, 'n_samples': 18},
+            5: {'start': 1170, 'end': 1350, 'n_samples': 18},
+            6: {'start': 1350, 'end': 1530, 'n_samples': 18},
+            7: {'start': 1530, 'end': 1680, 'n_samples': 30},
+            8: {'start': 1680, 'end': 1800, 'n_samples': 24},
+            9: {'start': 1800, 'end': 1970, 'n_samples': 34},
+            10: {'start': 1970, 'end': 2000, 'n_samples': 6}
         }
+        # Phase 경계 anchor time point (전 매치 공통): 각 phase 전환 1초 전/후
+        # 7개 전환 (phase 1->2 ~ 7->8) x 2 = 14개
+        self.phase_boundary_points = [
+            599, 601,    # phase 1 -> 2
+            809, 811,    # phase 2 -> 3
+            989, 991,    # phase 3 -> 4
+            1169, 1171,  # phase 4 -> 5
+            1349, 1351,  # phase 5 -> 6
+            1529, 1531,  # phase 6 -> 7
+            1679, 1681,  # phase 7 -> 8
+        ]
     
     def get_character_name(self, parsed_df):
         return parsed_df['character_name']
@@ -513,11 +529,19 @@ class SquadFeatureExtractor(FeatureExtractor):
             phase_start = config['start']
             phase_end = config['end']
             n_samples = config['n_samples']
-            
+
             # Phase 내에서 random time_point 샘플링
             time_points = np.random.uniform(phase_start, phase_end, n_samples)
+
+            # 해당 phase에 속하는 boundary anchor point 추가 (전 매치 공통)
+            boundary_in_phase = [
+                tp for tp in self.phase_boundary_points
+                if phase_start <= tp < phase_end
+            ]
+            if boundary_in_phase:
+                time_points = np.concatenate([time_points, boundary_in_phase])
             time_points = np.sort(time_points)  # 시간 순으로 정렬
-            
+
             phase_time_point_map[phase_num] = time_points
             all_time_points.extend(time_points)
         

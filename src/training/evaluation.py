@@ -22,8 +22,7 @@ from src.training.metrics import (
 )
 
 # Constants
-NUM_PHASES = 10  # 50 time points / 5 per phase = 10 phases
-SAMPLES_PER_PHASE = 5
+from src.data.utils import NUM_PHASES, time_point_to_phase
 # Primary metrics (reported in the paper) first, followed by calibration diagnostics.
 METRIC_NAMES = ['accuracy', 'c_index', 'ibs', 'ece', 'log_loss']
 
@@ -41,7 +40,8 @@ def evaluate_test_set(
     Accuracy is computed as: whether the squad with highest predicted
     survival time matches the squad with highest actual survival time.
 
-    Each match has 50 time points, divided into 10 phases (5 per phase).
+    Each match consists of phase-sampled time points (10 phases, non-uniform
+    density); phase membership is derived from the time point value.
 
     Args:
         backbone: Trained backbone model.
@@ -97,9 +97,9 @@ def evaluate_test_set(
     phase_correct = defaultdict(int)
     phase_total = defaultdict(int)
 
-    for idx, time_point in enumerate(all_time_points):
-        # Determine phase (1-indexed): 5 samples per phase
-        phase = min(idx // SAMPLES_PER_PHASE + 1, NUM_PHASES)
+    for time_point in all_time_points:
+        # Determine phase (1-indexed) from the time point value
+        phase = time_point_to_phase(time_point)
 
         for sample in match_data[time_point]:
             pred = sample["predictions"]
@@ -193,9 +193,8 @@ def evaluate_test_set_by_match(
 
     idx_to_phase = {}
     for match_id, samples in match_groups.items():
-        for sample_idx, (time_point, dataset_idx) in enumerate(samples):
-            phase = min(sample_idx // SAMPLES_PER_PHASE + 1, NUM_PHASES)
-            idx_to_phase[dataset_idx] = phase
+        for time_point, dataset_idx in samples:
+            idx_to_phase[dataset_idx] = time_point_to_phase(time_point)
 
     # Step 2: Batch inference and collect results per phase
     test_loader = DataLoader(

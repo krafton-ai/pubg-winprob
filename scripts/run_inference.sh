@@ -129,7 +129,7 @@ elif [ -n "${FOLDER_PATH}" ] && [ -n "${FILE_LIST}" ]; then
     echo "Mode: Multiple CSV Inference (Phase-wise Accuracy)"
     echo "Folder: ${FOLDER_PATH}"
     echo "Files: ${FILE_LIST}"
-    echo "Phases: 10 (fixed: 50 time points / 5 per phase)"
+    echo "Phases: 10"
     
     CMD="${CMD} --folder_path ${FOLDER_PATH}"
     CMD="${CMD} --file_list ${FILE_LIST}"
