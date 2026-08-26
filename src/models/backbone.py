@@ -30,6 +30,10 @@ class TransformerBackbone(nn.Module):
         ff_hidden_dim: Hidden dimension in transformer feedforward layers.
         dropout: Dropout probability.
         num_frequencies: Number of frequency bands for positional encoding.
+        encoder_type: 'transformer' (self-attention over squads) or 'mlp'
+            (per-squad MLP with no cross-squad attention; used for the
+            encoder ablation in Table 2). Same features, losses, and
+            training settings apply to both.
     """
 
     def __init__(
@@ -42,11 +46,15 @@ class TransformerBackbone(nn.Module):
         ff_hidden_dim: int = None,
         dropout: float = 0.1,
         num_frequencies: int = 8,
+        encoder_type: str = "transformer",
     ):
         super().__init__()
 
         self.input_dim = input_dim
         self.embed_dim = embed_dim
+        self.encoder_type = encoder_type.lower()
+        assert self.encoder_type in ("transformer", "mlp"), \
+            f"encoder_type must be 'transformer' or 'mlp', got {encoder_type}"
 
         # Token embedding layer (continuous features)
         self.token_embedding = TokenEmbedding(
@@ -76,23 +84,37 @@ class TransformerBackbone(nn.Module):
         # Map embedding (4 maps: erangel, miramar, taego, rondo)
         self.map_embedding = nn.Embedding(NUM_MAPS, embed_dim)
 
-        # Transformer encoder
+        # Encoder (Transformer vs per-squad MLP)
         if ff_hidden_dim is None:
             ff_hidden_dim = embed_dim * 4
 
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=embed_dim,
-            nhead=num_heads,
-            dim_feedforward=ff_hidden_dim,
-            dropout=dropout,
-            activation='gelu',
-            batch_first=True,
-        )
+        if self.encoder_type == "transformer":
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=embed_dim,
+                nhead=num_heads,
+                dim_feedforward=ff_hidden_dim,
+                dropout=dropout,
+                activation='gelu',
+                batch_first=True,
+            )
 
-        self.transformer = nn.TransformerEncoder(
-            encoder_layer=encoder_layer,
-            num_layers=num_layers,
-        )
+            self.transformer = nn.TransformerEncoder(
+                encoder_layer=encoder_layer,
+                num_layers=num_layers,
+            )
+        else:
+            # MLP encoder: each squad token is processed independently,
+            # so no inter-squad interaction is modeled.
+            layers = []
+            for _ in range(num_layers):
+                layers.extend([
+                    nn.Linear(embed_dim, ff_hidden_dim),
+                    nn.GELU(),
+                    nn.Dropout(dropout),
+                    nn.Linear(ff_hidden_dim, embed_dim),
+                    nn.Dropout(dropout),
+                ])
+            self.transformer = nn.Sequential(*layers)
 
         # Layer normalization
         self.norm = nn.LayerNorm(embed_dim)

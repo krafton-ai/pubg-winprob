@@ -27,6 +27,19 @@ from src.models.heads import get_head
 from src.training.losses import get_loss_fn
 
 
+def set_seed(seed: int):
+    """Seed all random number generators for reproducibility."""
+    import random
+
+    import numpy as np
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 def setup_ddp(rank: int, world_size: int):
     """Initialize DDP process group."""
     os.environ["MASTER_ADDR"] = os.environ.get("MASTER_ADDR", "localhost")
@@ -375,6 +388,7 @@ def get_ddp_dataloaders(
     world_size: int = 1,
     toy_ratio: float = 1.0,
     use_dataset_v2: bool = True,
+    seed: int = 42,
 ):
     """
     Create DataLoaders with DistributedSampler for DDP.
@@ -389,6 +403,7 @@ def get_ddp_dataloaders(
         world_size: Total number of processes.
         toy_ratio: Ratio of data to use (0.0-1.0). Default 1.0 uses all data.
         use_dataset_v2: If True, use PGCDatasetV2 with distance features.
+        seed: Random seed for data subsampling.
 
     Returns:
         Tuple of (train_loader, val_loader, test_loader, scaler_params).
@@ -415,7 +430,7 @@ def get_ddp_dataloaders(
     # Apply toy_ratio to use subset of data
     if toy_ratio < 1.0:
         import random
-        random.seed(42)
+        random.seed(seed)
         n_train = max(1, int(len(train_files) * toy_ratio))
         n_val = max(1, int(len(val_files) * toy_ratio))
         n_test = max(1, int(len(test_files) * toy_ratio))
@@ -524,6 +539,8 @@ def run_experiment(
     toy_ratio: float = 1.0,
     loss_type: str = "mse",
     use_dataset_v2: bool = True,
+    seed: int = 42,
+    encoder_type: str = "transformer",
 ) -> Dict:
     """
     Run a complete training experiment (single GPU or DDP).
@@ -548,10 +565,14 @@ def run_experiment(
         world_size: Total number of processes for DDP.
         loss_type: Loss function type ('mse', 'cox', 'ce').
         use_dataset_v2: If True, use PGCDatasetV2 with distance features.
+        seed: Random seed for reproducibility.
+        encoder_type: 'transformer' or 'mlp' (Table 2 encoder ablation).
 
     Returns:
         Training history dictionary.
     """
+    set_seed(seed)
+
     is_ddp = rank is not None
     is_main_process = (rank is None) or (rank == 0)
 
@@ -580,6 +601,7 @@ def run_experiment(
         world_size=world_size,
         toy_ratio=toy_ratio,
         use_dataset_v2=use_dataset_v2,
+        seed=seed,
     )
 
     # Create models
@@ -595,6 +617,7 @@ def run_experiment(
         num_heads=num_heads,
         num_layers=num_layers,
         dropout=dropout,
+        encoder_type=encoder_type,
     )
 
     # Get appropriate head based on loss type
@@ -635,6 +658,8 @@ def run_experiment(
             "input_dim": input_dim,
             "loss_type": loss_type,
             "use_dataset_v2": use_dataset_v2,
+            "seed": seed,
+            "encoder_type": encoder_type,
         }
 
         os.makedirs(checkpoint_dir, exist_ok=True)
@@ -798,6 +823,12 @@ if __name__ == "__main__":
     parser.add_argument("--use_dataset_v2", type=str, default="true",
                         choices=["true", "false"],
                         help="Use PGCDatasetV2 with distance features (default: true)")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducibility (default: 42)")
+    parser.add_argument("--encoder", type=str, default="transformer",
+                        choices=["transformer", "mlp"],
+                        help="Encoder type: 'transformer' (self-attention) or "
+                             "'mlp' (no cross-squad attention; Table 2 ablation)")
     args = parser.parse_args()
     
     # Convert string to boolean
@@ -823,6 +854,8 @@ if __name__ == "__main__":
             toy_ratio=args.toy_ratio,
             loss_type=args.loss_type,
             use_dataset_v2=args.use_dataset_v2,
+            seed=args.seed,
+            encoder_type=args.encoder,
         )
     else:
         # Single GPU training
@@ -845,5 +878,7 @@ if __name__ == "__main__":
             toy_ratio=args.toy_ratio,
             loss_type=args.loss_type,
             use_dataset_v2=args.use_dataset_v2,
+            seed=args.seed,
+            encoder_type=args.encoder,
         )
 

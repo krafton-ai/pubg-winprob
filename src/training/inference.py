@@ -85,6 +85,7 @@ def load_model_from_checkpoint(
         num_heads=num_heads,
         num_layers=num_layers,
         dropout=dropout,
+        encoder_type=config.get("encoder_type", "transformer"),
     )
 
     # Get appropriate head based on loss type from config
@@ -229,7 +230,8 @@ def run_inference_on_folder(
     """
     Run inference on multiple CSV files and compute phase-wise accuracy.
 
-    Each match has 50 time points, divided into 10 phases (5 per phase).
+    Each match consists of phase-sampled time points (10 phases, non-uniform
+    density); phase membership is derived from the time point value.
 
     Args:
         folder_path: Path to folder containing CSV files.
